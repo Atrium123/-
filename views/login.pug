@@ -1,0 +1,19 @@
+doctype html
+html
+  head
+    title 3322A Ass4
+    link(rel='stylesheet', href='/styles.css')
+    script(src='/validate.js', defer)
+  body
+    h1 Gradebook Accessing Page
+    form(action='/login', method='post' id='loginForm')
+      fieldset(name="logininfo")
+        legend My Gradebooks
+        label(for='email') Email:
+        input(type='email', id='email', name='email', required)
+        div#emailHint.popup(style='display: none;')
+        input(type='submit', name='login', value='Login')
+
+    if message
+      div#responseMessage.popup(class="show")
+        p= message

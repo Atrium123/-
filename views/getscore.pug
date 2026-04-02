@@ -1,0 +1,27 @@
+doctype html
+html
+  head
+    title= title
+    link(rel="stylesheet", href="/scorestyles.css")
+  body
+    h1= message
+
+    
+    if noGradebook
+      p You do not have the gradebook for the course: #{courseName} in the system.
+    else
+      table
+        caption Assignment Scores
+        thead
+          tr
+            th Item
+            th Score
+        tbody
+          each row in rows
+            tr
+              td= row.assign
+              td= row.score
+        tfoot
+          tr
+            td Total
+            td= totalScore

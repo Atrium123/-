@@ -1,0 +1,18 @@
+doctype html
+html
+  head
+    title= title
+    link(rel="stylesheet", href="/loginstyles.css")
+  body
+    h1= message
+
+    
+    if courses.length === 0
+      p No courses available for this user.
+    else
+      ul
+        each course in courses
+          li
+            a(href=course.link)= course.name
+
+
