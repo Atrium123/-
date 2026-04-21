@@ -1,0 +1,63 @@
+﻿doctype html
+html(lang='zh-Hans')
+  head
+    meta(charset='UTF-8')
+    meta(name='viewport', content='width=device-width, initial-scale=1.0')
+    title= title
+    link(rel='stylesheet', href='/styles.css')
+  body(data-page=pageName)
+    .sky-layer
+    header.site-header
+      .header-inner
+        a.brand(href='/flights/search')
+          span.brand-mark HK
+          span.brand-name.i18n-text(data-zh='香港航班查询系统' data-en='Hong Kong Flight Finder') 香港航班查询系统
+
+        nav.main-nav
+          a.nav-link(class=pageName === 'search' ? 'active' : '' href='/flights/search')
+            span.i18n-text(data-zh='查询首页' data-en='Search') 查询首页
+          a.nav-link(class=pageName === 'results' ? 'active' : '' href='/flights/results')
+            span.i18n-text(data-zh='航班结果' data-en='Results') 航班结果
+          a.nav-link(class=pageName === 'saved' ? 'active' : '' href='/flights/saved')
+            span.i18n-text(data-zh='收藏与历史' data-en='Saved & History') 收藏与历史
+
+        .locale-switch(role='group' aria-label='language switch')
+          button.locale-btn(type='button' data-locale-target='zh') 中文
+          button.locale-btn(type='button' data-locale-target='en') EN
+
+    main.page-shell
+      block content
+
+    #flightModal.modal(hidden)
+      .modal-backdrop(data-modal-close='true')
+      .modal-dialog(role='dialog' aria-modal='true' aria-labelledby='modalTitle')
+        button.modal-close(type='button' data-modal-close='true' aria-label='close') ×
+        h2#modalTitle.modal-title -
+        p#modalSubtitle.modal-subtitle -
+
+        .modal-info-grid
+          .info-item
+            span.info-label.i18n-text(data-zh='航班状态' data-en='Status') 航班状态
+            span#modalStatusValue.info-value -
+          .info-item
+            span.info-label.i18n-text(data-zh='航站楼' data-en='Terminal') 航站楼
+            span#modalTerminalValue.info-value -
+          .info-item
+            span.info-label.i18n-text(data-zh='登机口' data-en='Gate') 登机口
+            span#modalGateValue.info-value -
+          .info-item
+            span.info-label.i18n-text(data-zh='行李转盘' data-en='Belt') 行李转盘
+            span#modalBeltValue.info-value -
+          .info-item
+            span.info-label.i18n-text(data-zh='机型' data-en='Aircraft') 机型
+            span#modalAircraftValue.info-value -
+          .info-item
+            span.info-label.i18n-text(data-zh='状态更新时间' data-en='Status Updated') 状态更新时间
+            span#modalUpdatedValue.info-value -
+
+        h3.timeline-title.i18n-text(data-zh='状态时间轴' data-en='Status Timeline') 状态时间轴
+        ul#modalTimeline.timeline-list
+
+    script.
+      window.__HK_FLIGHTS_PAGE__ = !{JSON.stringify(pageData || {})};
+    script(src='/app.js' defer)

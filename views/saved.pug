@@ -1,0 +1,21 @@
+﻿extends layout
+
+block content
+  section.card.page-intro
+    h1.i18n-text(data-zh='收藏与最近查询' data-en='Saved Flights & Recent Searches') 收藏与最近查询
+    p.i18n-text(data-zh='收藏常用航班，快速回看最近筛选组合。' data-en='Keep frequently used flights and revisit your latest search combinations.') 收藏常用航班，快速回看最近筛选组合。
+
+  .saved-layout
+    section.card.saved-section
+      .section-heading
+        h2.i18n-text(data-zh='收藏航班' data-en='Favorite Flights') 收藏航班
+        button#clearFavoritesBtn.button.button-secondary(type='button')
+          span.i18n-text(data-zh='清空收藏' data-en='Clear Favorites') 清空收藏
+      #favoritesList.saved-favorites
+
+    section.card.saved-section
+      .section-heading
+        h2.i18n-text(data-zh='最近查询' data-en='Recent Searches') 最近查询
+        button#clearHistoryBtn.button.button-secondary(type='button')
+          span.i18n-text(data-zh='清空历史' data-en='Clear History') 清空历史
+      #historyList.history-list

@@ -1,0 +1,96 @@
+﻿extends layout
+
+block content
+  section.card.page-intro
+    h1.i18n-text(data-zh='航班查询结果' data-en='Flight Results') 航班查询结果
+    p.i18n-text(data-zh='支持关键词检索、组合筛选与排序。点击任意航班查看详细时间轴。' data-en='Use keyword search, combined filters, and sorting. Select any flight to open the timeline details.') 支持关键词检索、组合筛选与排序。点击任意航班查看详细时间轴。
+
+  .results-layout
+    #filterBackdrop.filter-backdrop(hidden)
+
+    aside#filterPanel.card.filter-panel
+      .panel-head
+        h2.i18n-text(data-zh='筛选条件' data-en='Filters') 筛选条件
+        button#closeFilterPanel.icon-button(type='button' aria-label='close filters') ×
+
+      form#filterForm.filter-form(action='/flights/results' method='get')
+        input(type='hidden' name='page' value='1')
+
+        .field-group
+          label(for='keyword').i18n-text(data-zh='关键词' data-en='Keyword') 关键词
+          input#keyword(type='text' name='keyword' autocomplete='off' value=pageData.initialQuery.keyword data-zh-placeholder='航班号 / 航司 / 城市' data-en-placeholder='Flight no / Airline / City')
+
+        .field-group
+          label(for='type').i18n-text(data-zh='航班类型' data-en='Flight Type') 航班类型
+          select#type(name='type')
+            option(value='' selected=pageData.initialQuery.type === '' data-zh='全部类型' data-en='All Types') 全部类型
+            option(value='arrival' selected=pageData.initialQuery.type === 'arrival' data-zh='到港' data-en='Arrival') 到港
+            option(value='departure' selected=pageData.initialQuery.type === 'departure' data-zh='离港' data-en='Departure') 离港
+
+        .field-group
+          label(for='date').i18n-text(data-zh='日期' data-en='Date') 日期
+          input#date(type='date' name='date' value=pageData.initialQuery.date)
+
+        .field-group
+          label(for='status').i18n-text(data-zh='状态' data-en='Status') 状态
+          select#status(name='status')
+            option(value='' selected=pageData.initialQuery.status === '' data-zh='全部状态' data-en='All Statuses') 全部状态
+            option(value='on_time' selected=pageData.initialQuery.status === 'on_time' data-zh='准点' data-en='On Time') 准点
+            option(value='delayed' selected=pageData.initialQuery.status === 'delayed' data-zh='延误' data-en='Delayed') 延误
+            option(value='boarding' selected=pageData.initialQuery.status === 'boarding' data-zh='登机中' data-en='Boarding') 登机中
+            option(value='landed' selected=pageData.initialQuery.status === 'landed' data-zh='已到达' data-en='Landed') 已到达
+            option(value='departed' selected=pageData.initialQuery.status === 'departed' data-zh='已起飞' data-en='Departed') 已起飞
+            option(value='cancelled' selected=pageData.initialQuery.status === 'cancelled' data-zh='已取消' data-en='Cancelled') 已取消
+
+        .field-group
+          label(for='terminal').i18n-text(data-zh='航站楼' data-en='Terminal') 航站楼
+          select#terminal(name='terminal')
+            option(value='' selected=pageData.initialQuery.terminal === '' data-zh='全部航站楼' data-en='All Terminals') 全部航站楼
+            option(value='T1' selected=pageData.initialQuery.terminal === 'T1' data-zh='T1 航站楼' data-en='Terminal 1') T1 航站楼
+            option(value='T2' selected=pageData.initialQuery.terminal === 'T2' data-zh='T2 航站楼' data-en='Terminal 2') T2 航站楼
+
+        .field-group
+          label(for='sort').i18n-text(data-zh='排序方式' data-en='Sort By') 排序方式
+          select#sort(name='sort')
+            option(value='time_asc' selected=pageData.initialQuery.sort === 'time_asc' data-zh='时间升序' data-en='Time Ascending') 时间升序
+            option(value='time_desc' selected=pageData.initialQuery.sort === 'time_desc' data-zh='时间降序' data-en='Time Descending') 时间降序
+            option(value='status' selected=pageData.initialQuery.sort === 'status' data-zh='按状态优先级' data-en='Status Priority') 按状态优先级
+
+        .form-actions
+          button.button.button-primary(type='submit')
+            span.i18n-text(data-zh='更新结果' data-en='Update Results') 更新结果
+          button#resetFilters.button.button-secondary(type='button')
+            span.i18n-text(data-zh='清空筛选' data-en='Clear Filters') 清空筛选
+
+    section.results-panel
+      .results-toolbar
+        button#openFilterPanel.button.button-secondary.filter-toggle(type='button')
+          span.i18n-text(data-zh='打开筛选' data-en='Open Filters') 打开筛选
+        p#resultSummary.result-summary
+
+      #activeFilters.active-filters
+      #resultsCards.cards-grid
+
+      .table-wrap
+        table.results-table
+          thead
+            tr
+              th
+                span.i18n-text(data-zh='航班号' data-en='Flight No') 航班号
+              th
+                span.i18n-text(data-zh='航司' data-en='Airline') 航司
+              th
+                span.i18n-text(data-zh='到离港' data-en='Type') 到离港
+              th
+                span.i18n-text(data-zh='城市' data-en='City') 城市
+              th
+                span.i18n-text(data-zh='计划时间' data-en='Scheduled') 计划时间
+              th
+                span.i18n-text(data-zh='预估时间' data-en='Estimated') 预估时间
+              th
+                span.i18n-text(data-zh='状态' data-en='Status') 状态
+              th
+                span.i18n-text(data-zh='操作' data-en='Actions') 操作
+          tbody#resultsTableBody
+
+      #pagination.pagination

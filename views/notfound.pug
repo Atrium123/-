@@ -1,0 +1,8 @@
+﻿extends layout
+
+block content
+  section.card.notfound-card
+    h1.i18n-text(data-zh='页面不存在' data-en='Page Not Found') 页面不存在
+    p.i18n-text(data-zh='你访问的页面已失效或输入了错误地址。' data-en='The page you requested does not exist or the URL is invalid.') 你访问的页面已失效或输入了错误地址。
+    a.button.button-primary(href='/flights/search')
+      span.i18n-text(data-zh='返回查询首页' data-en='Back to Search') 返回查询首页

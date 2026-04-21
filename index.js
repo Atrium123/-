@@ -1,238 +1,333 @@
-const express = require('express');
-const session = require('express-session');
-const nodemailer = require('nodemailer');
-const crypto = require('crypto');
-const mongoose = require('mongoose');
-const { MongoClient } = require('mongodb');
+﻿const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
-const sessionTimeout = 300000; //记得还回来记得改回来记得改回来
+const app = express();
+const PORT = process.env.PORT || 8080;
+const PAGE_SIZE = 8;
+const HK_TIMEZONE = 'Asia/Hong_Kong';
 
-//检查会话是否超时
-function checkSessionTimeout(req, res, next) {
-  const currentTime = Date.now();
-  const loginTime = req.session.loginTime; 
+const ALLOWED_TYPES = new Set(['arrival', 'departure']);
+const ALLOWED_STATUSES = new Set(['on_time', 'delayed', 'boarding', 'landed', 'departed', 'cancelled']);
+const ALLOWED_TERMINALS = new Set(['T1', 'T2']);
+const ALLOWED_SORT = new Set(['time_asc', 'time_desc', 'status']);
+const STATUS_PRIORITY = {
+  boarding: 1,
+  on_time: 2,
+  delayed: 3,
+  landed: 4,
+  departed: 5,
+  cancelled: 6,
+};
 
-  
-  if (!loginTime || (currentTime - loginTime > sessionTimeout)) {
-    const timeoutMessage = 'Session expired. Please login again.';
+const flights = loadFlights();
 
-    
-    req.session.message = timeoutMessage;
+app.use(express.static(path.join(__dirname, 'static')));
+app.use(express.json());
 
-    req.session.destroy(() => {
-      
-      req.session = null; 
-      res.redirect('/login'); 
+app.set('view engine', 'pug');
+app.set('views', path.join(__dirname, 'views'));
+
+app.get('/', (_req, res) => {
+  res.redirect('/flights/search');
+});
+
+app.get('/flights/search', (req, res) => {
+  const requestedDate = isISODate(req.query.date) ? req.query.date : getTodayInTimezone();
+  const stats = buildDailyStats(requestedDate);
+
+  res.render('search', {
+    title: '香港航班查询系统',
+    pageName: 'search',
+    pageData: {
+      todayDate: requestedDate,
+      stats,
+    },
+  });
+});
+
+app.get('/flights/results', (req, res) => {
+  const query = normalizeQuery(req.query);
+  const defaultDate = query.date || getTodayInTimezone();
+
+  res.render('results', {
+    title: '航班查询结果',
+    pageName: 'results',
+    pageData: {
+      initialQuery: {
+        ...query,
+        date: defaultDate,
+      },
+      defaultDate,
+    },
+  });
+});
+
+app.get('/flights/saved', (_req, res) => {
+  res.render('saved', {
+    title: '收藏与历史',
+    pageName: 'saved',
+    pageData: {},
+  });
+});
+
+app.get('/api/flights', (req, res) => {
+  const query = normalizeQuery(req.query);
+  const filtered = filterFlights(flights, query);
+
+  if (query.ids.length > 0) {
+    res.json({
+      items: filtered.map(toFlightSummary),
+      total: filtered.length,
+      page: 1,
+      pageSize: filtered.length,
+      totalPages: 1,
+      query,
     });
     return;
   }
 
-  next(); 
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(query.page, totalPages);
+  const start = (page - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+
+  res.json({
+    items: filtered.slice(start, end).map(toFlightSummary),
+    total,
+    page,
+    pageSize: PAGE_SIZE,
+    totalPages,
+    query: {
+      ...query,
+      page,
+    },
+  });
+});
+
+app.get('/api/flights/:id', (req, res) => {
+  const flight = flights.find((item) => item.id === req.params.id);
+
+  if (!flight) {
+    res.status(404).json({ message: 'Flight not found.' });
+    return;
+  }
+
+  res.json({ item: toFlightDetail(flight) });
+});
+
+app.use((_req, res) => {
+  res.status(404).render('notfound', {
+    title: '页面不存在',
+    pageName: 'notfound',
+    pageData: {},
+  });
+});
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server is running at http://localhost:${PORT}`);
+  });
 }
 
+module.exports = app;
 
+function loadFlights() {
+  const sourcePath = path.join(__dirname, 'data', 'flights.json');
 
-// 连接到 MongoDB
-mongoose.connect('mongodb://mongodb/Gradebook')
-  .then(() => {
-    console.log("Connected to MongoDB");
-  })
-  .catch(err => {
-    console.log("MongoDB connection error: " + err);
+  try {
+    const raw = fs.readFileSync(sourcePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(sanitizeFlightData) : [];
+  } catch (error) {
+    console.error('Failed to load flight data:', error);
+    return [];
+  }
+}
+
+function sanitizeFlightData(flight) {
+  const timeline = Array.isArray(flight.timeline)
+    ? flight.timeline.map((item) => ({
+      ...item,
+      label: sanitizeLocalizedText(item.label),
+    }))
+    : [];
+
+  return {
+    ...flight,
+    airline: sanitizeLocalizedText(flight.airline),
+    city: sanitizeLocalizedText(flight.city),
+    timeline,
+  };
+}
+
+function sanitizeLocalizedText(value) {
+  const zhValue = value && typeof value.zh === 'string' ? value.zh : '';
+  const enValue = value && typeof value.en === 'string' ? value.en : '';
+
+  const safeZh = isCorruptedText(zhValue) ? '' : zhValue;
+  const safeEn = isCorruptedText(enValue) ? '' : enValue;
+
+  return {
+    zh: safeZh || safeEn,
+    en: safeEn || safeZh,
+  };
+}
+
+function isCorruptedText(text) {
+  return typeof text === 'string' && text.includes('\uFFFD');
+}
+
+function normalizeQuery(input) {
+  const keyword = typeof input.keyword === 'string' ? input.keyword.trim() : '';
+  const type = ALLOWED_TYPES.has(input.type) ? input.type : '';
+  const date = isISODate(input.date) ? input.date : '';
+  const status = ALLOWED_STATUSES.has(input.status) ? input.status : '';
+  const terminal = ALLOWED_TERMINALS.has(input.terminal) ? input.terminal : '';
+  const sort = ALLOWED_SORT.has(input.sort) ? input.sort : 'time_asc';
+
+  const pageValue = Number.parseInt(input.page, 10);
+  const page = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1;
+
+  const ids = typeof input.ids === 'string'
+    ? input.ids.split(',').map((item) => item.trim()).filter(Boolean)
+    : [];
+
+  return {
+    keyword,
+    type,
+    date,
+    status,
+    terminal,
+    sort,
+    page,
+    ids,
+  };
+}
+
+function filterFlights(allFlights, query) {
+  const idsFilter = new Set(query.ids);
+  let result = allFlights.filter((flight) => {
+    if (idsFilter.size > 0 && !idsFilter.has(flight.id)) {
+      return false;
+    }
+
+    if (query.type && flight.type !== query.type) {
+      return false;
+    }
+
+    if (query.date && flight.date !== query.date) {
+      return false;
+    }
+
+    if (query.status && flight.status !== query.status) {
+      return false;
+    }
+
+    if (query.terminal && flight.terminal !== query.terminal) {
+      return false;
+    }
+
+    if (query.keyword) {
+      const haystack = [
+        flight.flightNo,
+        flight.airline.zh,
+        flight.airline.en,
+        flight.city.zh,
+        flight.city.en,
+        flight.cityCode,
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      if (!haystack.includes(query.keyword.toLowerCase())) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
-const app = express();
-
-
-app.use(express.static('static'));
-
-
-app.set('view engine', 'pug');
-app.set('views', 'views');
-
-
-app.use(express.urlencoded({ extended: false }));
-
-app.use(session({
-  secret: 'your_secret_key', 
-  resave: false,
-  saveUninitialized: true,
-}));
-
-
-const userSchema = new mongoose.Schema({
-  _id: Number,
-  uid: Number,
-  email: { type: String, required: true },
-  secret: String,
-  timestamp: String,
-});
-
-
-const User = mongoose.model('User', userSchema);
-
-const courseinfoSchema = new mongoose.Schema({
-  _id: Number,
-  uid: Number, 
-  course: String, 
-  assign: String, 
-  score: Number, 
-});
-
-
-const Courseinfo = mongoose.model('Courseinfo', courseinfoSchema, 'courseinfo');
-
-
-
-const transporter = nodemailer.createTransport({
-  host: 'testmail.cs.hku.hk',
-  port: 25,
-  secure: false, 
-});
-
-app.get('/login', async (req, res) => {
-  const { token } = req.query; 
-
-  const message = req.session ? req.session.message : ''; 
-  req.session && (req.session.message = null); 
-
-  if (!token) {
-    return res.render('login', { message });
-  }
-
-  try {
-    const decoded = Buffer.from(token, 'base64').toString('utf-8');
-    const { uid, secret, timestamp } = JSON.parse(decoded);
-
-    const currentTimestamp = Date.now();
-    const tokenAge = currentTimestamp - timestamp;
-
-    if (tokenAge > 60000) {
-      return res.render('login', { message: 'Fail to authenticate - OTP expired!' });
-    }
-
-    const user = await User.findOne({ uid });
-    if (!user || user.secret !== secret) {
-      return res.render('login', { message: 'Fail to authenticate - incorrect secret!' });
-    }
-
-    
-    req.session.uid = uid;
-    req.session.loginTime = Date.now(); 
-    console.log('Session started at:', req.session.loginTime);
-
-    res.redirect('/courseinfo/mylist');
-  } catch (err) {
-    console.error('Error during token validation:', err);
-    res.status(500).send('Internal Server Error');
-  }
-});
-
-
-
-// 处理 /login 的 POST 请求
-app.post('/login', async (req, res) => {
-  const { email } = req.body;
-
-  try {
-    const user = await User.findOne({ email });
-    if (user) {
-      const secret = crypto.randomBytes(16).toString('base64');
-      const timestamp = Date.now();
-      const token = Buffer.from(JSON.stringify({ uid: user.uid, secret: secret, timestamp: timestamp })).toString('base64');
-      user.secret = secret;
-      user.timestamp = timestamp;
-      await user.save();
-      const mailOptions = {
-        from: 'u3626519@connect.hku.hk',
-        to: email,
-        subject: 'Your Access Token',
-        html: ` <p>Dear Student,</p>
-                <p>You can log on to the system via the following link:</p>
-                <p><a href="http://localhost:8080/login?token=${token}">http://localhost:8080/login?token=${token}</a></p>`,
-      };
-      await transporter.sendMail(mailOptions);
-
-      res.render('login', { message: 'Please check your email to get the URL for accessing the course info page.' });
-    } else {
-      res.render('login', { message: `Unknown user - we don't have the record for ${email} in the system` });
-    }
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Internal server error');
-  }
-});
-
-// 检查会话是否超时
-app.get('/courseinfo/mylist', checkSessionTimeout, async (req, res) => {
-  const { uid } = req.session;
-
-  if (!uid) {
-    return res.status(400).send('User not authenticated');
-  }
-
-  try {
-    const courses = await Courseinfo.find({ uid }).exec();
-    const courseLinks = courses.length
-      ? [...new Set(courses.map(course => course.course))].map(courseName => ({
-        name: courseName,
-        link: `/courseinfo/getscore?course=${courseName}`,
-      }))
-      : [];
-
-    res.render('courseinfo', {
-      title: 'Course Information',
-      message: `Retrieve continuous assessment scores for: ${uid}`,
-      courses: courseLinks,
+  if (idsFilter.size > 0) {
+    const originalOrder = new Map(query.ids.map((id, index) => [id, index]));
+    result = result.sort((left, right) => {
+      return (originalOrder.get(left.id) ?? 9999) - (originalOrder.get(right.id) ?? 9999);
     });
-  } catch (err) {
-    console.error('Error during course query:', err);
-    res.status(500).send('Internal Server Error');
-  }
-});
-
-app.get('/courseinfo/getscore', checkSessionTimeout, async (req, res) => {
-  const { course } = req.query;
-  const { uid } = req.session;
-
-  if (!uid || !course) {
-    return res.status(400).send('Missing UID or course information');
+    return result;
   }
 
-  try {
-    const courseData = await Courseinfo.find({ uid, course }).exec();
-    const totalScore = courseData.reduce((sum, item) => sum + item.score, 0);
+  return result.sort((left, right) => sortFlights(left, right, query.sort));
+}
 
-    if (courseData.length === 0) {
-      return res.render('getscore', {
-        title: 'Course Information',
-        message: `${course} - Gradebook`,
-        courseName: course,
-        rows: [],
-        totalScore: 0,
-        noGradebook: true,
-      });
+function sortFlights(left, right, mode) {
+  if (mode === 'status') {
+    const statusDelta = (STATUS_PRIORITY[left.status] ?? 99) - (STATUS_PRIORITY[right.status] ?? 99);
+    if (statusDelta !== 0) {
+      return statusDelta;
     }
 
-    res.render('getscore', {
-      title: 'Course Information',
-      message: `${course} - Gradebook`,
-      courseName: course,
-      rows: courseData,
-      totalScore,
-      noGradebook: false,
-    });
-  } catch (err) {
-    console.error('Error querying course data:', err);
-    res.status(500).send('Internal Server Error');
+    return toMinutes(left.scheduledTime) - toMinutes(right.scheduledTime);
   }
-});
 
+  if (mode === 'time_desc') {
+    return toMinutes(right.scheduledTime) - toMinutes(left.scheduledTime);
+  }
 
+  return toMinutes(left.scheduledTime) - toMinutes(right.scheduledTime);
+}
 
+function toMinutes(timeText) {
+  const [hour, minute] = String(timeText || '00:00').split(':').map(Number);
+  return (hour || 0) * 60 + (minute || 0);
+}
 
+function buildDailyStats(dateText) {
+  const items = flights.filter((flight) => flight.date === dateText);
 
-const port = 8080;
-app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
-});
+  return {
+    arrivals: items.filter((flight) => flight.type === 'arrival').length,
+    departures: items.filter((flight) => flight.type === 'departure').length,
+    delayed: items.filter((flight) => flight.status === 'delayed').length,
+  };
+}
+
+function getTodayInTimezone() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: HK_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function isISODate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function toFlightSummary(flight) {
+  return {
+    id: flight.id,
+    flightNo: flight.flightNo,
+    airline: flight.airline,
+    type: flight.type,
+    city: flight.city,
+    cityCode: flight.cityCode,
+    date: flight.date,
+    scheduledTime: flight.scheduledTime,
+    estimatedTime: flight.estimatedTime,
+    terminal: flight.terminal,
+    gate: flight.gate,
+    belt: flight.belt,
+    status: flight.status,
+    statusUpdatedAt: flight.statusUpdatedAt,
+  };
+}
+
+function toFlightDetail(flight) {
+  return {
+    ...toFlightSummary(flight),
+    aircraft: flight.aircraft,
+    timeline: flight.timeline || [],
+  };
+}

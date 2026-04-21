@@ -1,0 +1,75 @@
+﻿extends layout
+
+block content
+  section.card.hero-panel
+    p.hero-kicker.i18n-text(data-zh='香港国际机场 · Hong Kong International Airport' data-en='Hong Kong International Airport · HKG') 香港国际机场 · Hong Kong International Airport
+    h1.i18n-text(data-zh='实时查询到港与离港航班' data-en='Track Arrival and Departure Flights in Real Time') 实时查询到港与离港航班
+    p.hero-description.i18n-text(data-zh='输入航班号、城市或航司，快速筛选今日航班并查看状态变化。' data-en='Search by flight number, city, or airline to quickly filter flights and monitor status updates.') 输入航班号、城市或航司，快速筛选今日航班并查看状态变化。
+
+  section.card.search-card
+    form#searchForm.form-grid(action='/flights/results' method='get')
+      .field-group.field-group--wide
+        label(for='keyword').i18n-text(data-zh='关键词' data-en='Keyword') 关键词
+        input#keyword(type='text' name='keyword' autocomplete='off' data-zh-placeholder='航班号 / 航司 / 城市' data-en-placeholder='Flight no / Airline / City')
+
+      .field-group
+        label(for='type').i18n-text(data-zh='航班类型' data-en='Flight Type') 航班类型
+        select#type(name='type')
+          option(value='' data-zh='全部类型' data-en='All Types') 全部类型
+          option(value='arrival' data-zh='到港' data-en='Arrival') 到港
+          option(value='departure' data-zh='离港' data-en='Departure') 离港
+
+      .field-group
+        label(for='date').i18n-text(data-zh='日期' data-en='Date') 日期
+        input#date(type='date' name='date' value=pageData.todayDate required)
+
+      .field-group
+        label(for='status').i18n-text(data-zh='状态' data-en='Status') 状态
+        select#status(name='status')
+          option(value='' data-zh='全部状态' data-en='All Statuses') 全部状态
+          option(value='on_time' data-zh='准点' data-en='On Time') 准点
+          option(value='delayed' data-zh='延误' data-en='Delayed') 延误
+          option(value='boarding' data-zh='登机中' data-en='Boarding') 登机中
+          option(value='landed' data-zh='已到达' data-en='Landed') 已到达
+          option(value='departed' data-zh='已起飞' data-en='Departed') 已起飞
+          option(value='cancelled' data-zh='已取消' data-en='Cancelled') 已取消
+
+      .field-group
+        label(for='terminal').i18n-text(data-zh='航站楼' data-en='Terminal') 航站楼
+        select#terminal(name='terminal')
+          option(value='' data-zh='全部航站楼' data-en='All Terminals') 全部航站楼
+          option(value='T1' data-zh='T1 航站楼' data-en='Terminal 1') T1 航站楼
+          option(value='T2' data-zh='T2 航站楼' data-en='Terminal 2') T2 航站楼
+
+      .field-group
+        label(for='sort').i18n-text(data-zh='排序方式' data-en='Sort By') 排序方式
+        select#sort(name='sort')
+          option(value='time_asc' data-zh='时间升序' data-en='Time Ascending') 时间升序
+          option(value='time_desc' data-zh='时间降序' data-en='Time Descending') 时间降序
+          option(value='status' data-zh='按状态优先级' data-en='Status Priority') 按状态优先级
+
+      .field-group.actions
+        button.button.button-primary(type='submit')
+          span.i18n-text(data-zh='查询航班' data-en='Search Flights') 查询航班
+
+  section.card
+    .section-heading
+      h2.i18n-text(data-zh='快捷入口' data-en='Quick Shortcuts') 快捷入口
+    .chip-row
+      a.chip(href='/flights/results?type=arrival&date=' + pageData.todayDate)
+        span.i18n-text(data-zh='仅看今日到港' data-en='Today Arrivals') 仅看今日到港
+      a.chip(href='/flights/results?type=departure&date=' + pageData.todayDate)
+        span.i18n-text(data-zh='仅看今日离港' data-en='Today Departures') 仅看今日离港
+      a.chip(href='/flights/results?status=delayed&date=' + pageData.todayDate)
+        span.i18n-text(data-zh='仅看延误航班' data-en='Delayed Flights') 仅看延误航班
+
+  section.stats-grid
+    article.card.stat-card
+      p.stat-label.i18n-text(data-zh='今日到港' data-en='Arrivals Today') 今日到港
+      p.stat-value= pageData.stats.arrivals
+    article.card.stat-card
+      p.stat-label.i18n-text(data-zh='今日离港' data-en='Departures Today') 今日离港
+      p.stat-value= pageData.stats.departures
+    article.card.stat-card
+      p.stat-label.i18n-text(data-zh='延误航班' data-en='Delayed Flights') 延误航班
+      p.stat-value= pageData.stats.delayed

@@ -1,19 +1,15 @@
 {
-    "name": "Ass4",
+    "name": "hk-flight-finder",
     "version": "1.0.0",
-    "description": "Passwordless authentication system for COMP3322",
+    "description": "Hong Kong flight finder with filters, favorites, and history",
     "main": "index.js",
     "scripts": {
         "start": "node index.js"
     },
-    "author": "Your Name",
+    "author": "Codex + User",
     "license": "MIT",
     "dependencies": {
-        "crypto": "^1.0.0",
         "express": "^4.21.1",
-        "express-session": "^1.18.1",
-        "mongoose": "^8.8.3",
-        "nodemailer": "^6.9.16",
         "pug": "^3.0.3"
     }
 }
